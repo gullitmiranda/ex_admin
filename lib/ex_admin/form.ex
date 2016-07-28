@@ -178,6 +178,7 @@ defmodule ExAdmin.Form do
   require IEx
   import ExAdmin.Theme.Helpers
   alias ExAdmin.Schema
+  require JSX
 
   import Kernel, except: [div: 2]
   use Xain
@@ -592,10 +593,18 @@ defmodule ExAdmin.Form do
       handle_prompt(field_name, item)
       for item <- collection do
         {value, name} = case item do
-          {value, name} -> {value, name}
+          {value, name} -> {to_string(value), name}
           other -> {other, other}
         end
-        selected = if Map.get(resource, field_name) == value,
+
+        res_value = Map.get(resource, field_name)
+        res_value = cond do
+          is_bitstring(res_value) -> res_value
+          is_list(res_value) -> hd(res_value) |> to_string
+          is_atom(res_value) -> res_value |> to_string
+        end
+
+        selected = if value == res_value,
           do: [selected: :selected], else: []
         option(name, [value: value] ++ selected)
       end
@@ -873,6 +882,18 @@ defmodule ExAdmin.Form do
     Xain.textarea(value, options)
   end
 
+  def build_control(:map, resource, opts, model_name, field_name, ext_name) do
+    value = with {:ok, value} <- (Map.get(resource, field_name) || %{}) |> JSX.encode,
+                 {:ok, value} <- value |> JSX.prettify, do: value |> escape_value
+    options = opts
+    |> Map.put(:class, "form-control")
+    |> Map.put_new(:name, "#{model_name}[#{field_name}]")
+    |> Map.put_new(:id, ext_name)
+    |> Map.delete(:display)
+    |> Map.to_list
+    Xain.textarea(value, options)
+  end
+
   def build_control({:array, type}, resource, opts, model_name, field_name, ext_name) when type in ~w(string integer)a do
 
     name = "#{model_name}-#{field_name}"
@@ -888,6 +909,7 @@ defmodule ExAdmin.Form do
       |> Map.put_new(:id, ext_name)
       |> Map.delete(:display)
       |> Map.delete(:select2)
+      |> Map.delete(:type)
       |> Map.to_list
 
     options = case Map.get(resource, field_name, []) do
@@ -954,6 +976,7 @@ defmodule ExAdmin.Form do
     end)
     |> Enum.reverse
     |> Enum.join(", ")
+
     {collection, "{#{args}}"}
   end
 
@@ -1178,8 +1201,13 @@ defmodule ExAdmin.Form do
 
   def escape_value(nil), do: nil
   def escape_value(value) when is_map(value), do: value
+  def escape_value(values) when is_list(values) do
+    for value <- values, do: escape_value(value)
+  end
+
   def escape_value(value) do
-    Phoenix.HTML.html_escape(value) |> elem(1)
+    {:safe, safe_value} = Phoenix.HTML.html_escape(value)
+    safe_value
   end
 
   @doc false
