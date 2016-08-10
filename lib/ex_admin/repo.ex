@@ -281,15 +281,15 @@ defmodule ExAdmin.Repo do
           {res_model.__schema__(:association, join_table_name).related_key, resource.id},
           {new_model.__struct__.__schema__(:association, join_table_name).related_key, new_model.id}
         ])
-      %{join_through: _} ->
+      %{join_through: _, join_keys: join_keys} ->
+        [first, second] = join_keys |> Keyword.keys
         join_model_params = join_model.__schema__(:associations)
         |> Enum.reduce([], fn(assoc, acc) ->
           assoc_data = join_model.__schema__(:association, assoc)
-          new_model_struct = new_model.__struct__
-          assoc_id = case assoc_data.related do
-            ^res_model        -> resource.id
-            ^new_model_struct -> new_model.id
-            _                 -> :error
+          assoc_id = case assoc_data.owner_key do
+            ^first  -> resource.id
+            ^second -> new_model.id
+            _       -> :error
           end
           case assoc_id do
             :error -> acc
@@ -313,15 +313,15 @@ defmodule ExAdmin.Repo do
           new_model.__struct__.__schema__(:association, join_table_name).related_key
         }
 
-      %{join_through: _} ->
+      %{join_through: _, join_keys: join_keys} ->
+        [first, second] = join_keys |> Keyword.keys
         join_model_params = join_model.__schema__(:associations)
         |> Enum.reduce({}, fn(assoc, acc) ->
           assoc_data = join_model.__schema__(:association, assoc)
-          new_model_struct = new_model.__struct__
-          assoc_id = case assoc_data.related do
-            ^res_model        -> acc |> Tuple.insert_at(0, assoc_data.owner_key)
-            ^new_model_struct -> acc |> Tuple.append(assoc_data.owner_key)
-            _                 -> acc
+          assoc_id = case assoc_data.owner_key do
+            ^first  -> acc |> Tuple.insert_at(0, assoc_data.owner_key)
+            ^second -> acc |> Tuple.append(assoc_data.owner_key)
+            _       -> acc
           end
         end)
     end
