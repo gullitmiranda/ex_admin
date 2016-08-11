@@ -108,7 +108,9 @@ defmodule ExAdmin.Repo do
   end
 
   def insert(%ExAdmin.Changeset{} = changeset) do
-    case repo.insert changeset.changeset do
+    new_changeset = changeset.changeset
+                    |> Map.put(:data, changeset.changeset.data.__struct__.__struct__)
+    case repo.insert new_changeset do
       {:ok, resource} ->
         case ExAdmin.Schema.primary_key(resource) do
           nil -> resource
