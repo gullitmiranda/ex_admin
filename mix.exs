@@ -56,7 +56,8 @@ defmodule ExAdmin.Mixfile do
       {:earmark, "~> 0.1", only: :dev},
       {:ex_queb, "~> 0.2"},
       {:excoveralls, "~> 0.5", only: :test},
-      {:gettext, "~> 0.11"}
+      {:exjsx, "~> 3.2.0"},
+      {:gettext, "~> 0.11"},
     ]
   end
 

@@ -1629,8 +1629,6 @@ fieldset[disabled] .datepicker table tr td span.active.disabled:hover.active {
     margin-top: 5px;
     margin-right: 10px; }
   .select2-container--default .select2-selection--multiple .select2-selection__choice {
-    background-color: #e4e4e4;
-    border: 1px solid #aaa;
     border-radius: 4px;
     cursor: default;
     float: left;
@@ -1639,13 +1637,10 @@ fieldset[disabled] .datepicker table tr td span.active.disabled:hover.active {
     margin-top: 5px;
     padding: 0 5px; }
   .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-    color: #999;
     cursor: pointer;
     display: inline-block;
     font-weight: bold;
     margin-right: 2px; }
-    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
-      color: #333; }
 .select2-container--default[dir="rtl"] .select2-selection--multiple .select2-selection__choice, .select2-container--default[dir="rtl"] .select2-selection--multiple .select2-selection__placeholder {
   float: right; }
 .select2-container--default[dir="rtl"] .select2-selection--multiple .select2-selection__choice {
@@ -1810,8 +1805,6 @@ fieldset[disabled] .datepicker table tr td span.active.disabled:hover.active {
   .select2-container--classic .select2-selection--multiple .select2-selection__clear {
     display: none; }
   .select2-container--classic .select2-selection--multiple .select2-selection__choice {
-    background-color: #e4e4e4;
-    border: 1px solid #aaa;
     border-radius: 4px;
     cursor: default;
     float: left;
@@ -1819,13 +1812,10 @@ fieldset[disabled] .datepicker table tr td span.active.disabled:hover.active {
     margin-top: 5px;
     padding: 0 5px; }
   .select2-container--classic .select2-selection--multiple .select2-selection__choice__remove {
-    color: #888;
     cursor: pointer;
     display: inline-block;
     font-weight: bold;
     margin-right: 2px; }
-    .select2-container--classic .select2-selection--multiple .select2-selection__choice__remove:hover {
-      color: #555; }
 .select2-container--classic[dir="rtl"] .select2-selection--multiple .select2-selection__choice {
   float: right; }
 .select2-container--classic[dir="rtl"] .select2-selection--multiple .select2-selection__choice {

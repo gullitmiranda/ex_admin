@@ -108,7 +108,9 @@ defmodule ExAdmin.Repo do
   end
 
   def insert(%ExAdmin.Changeset{} = changeset) do
-    case repo.insert changeset.changeset do
+    new_changeset = changeset.changeset
+                    |> Map.put(:data, changeset.changeset.data.__struct__.__struct__)
+    case repo.insert new_changeset do
       {:ok, resource} ->
         case ExAdmin.Schema.primary_key(resource) do
           nil -> resource
@@ -159,7 +161,9 @@ defmodule ExAdmin.Repo do
           ids = Enum.map(val, &(String.to_integer(&1)))
           [{String.replace(key_str, "_id", "") |> String.to_atom, ids} | acc]
         is_map(val) and String.ends_with?(key_str, "ids") ->
-          ids = Map.keys(val) |> Enum.map(&(Atom.to_string(&1) |> String.to_integer))
+          ids = Map.keys(val) |> Enum.map(fn(val) ->
+            val |> Atom.to_string |> parse_primary_key
+          end)
           [{String.replace(key_str, "_id", "") |> String.to_atom, ids} | acc]
         true ->
           acc
@@ -271,28 +275,65 @@ defmodule ExAdmin.Repo do
   def join_model_instance(resource, has_many_atom, join_model, new_model) do
     res_model = resource.__struct__
     # get the join model atom
-    join_table_name = get_assoc_join_name(resource, Utils.to_atom(has_many_atom))
-res =     struct(join_model.__struct__, [
-      {res_model.__schema__(:association, join_table_name).related_key, resource.id},
-      {new_model.__struct__.__schema__(:association, join_table_name).related_key, new_model.id}
-    ])
-res
+    has_many_atom = Utils.to_atom(has_many_atom)
+    case res_model.__schema__(:association, has_many_atom) do
+      %{through: [_, _]} ->
+        join_table_name = get_assoc_join_name(resource, has_many_atom)
+        struct(join_model.__struct__, [
+          {res_model.__schema__(:association, join_table_name).related_key, resource.id},
+          {new_model.__struct__.__schema__(:association, join_table_name).related_key, new_model.id}
+        ])
+      %{join_through: _, join_keys: join_keys} ->
+        [first, second] = join_keys |> Keyword.keys
+        join_model_params = join_model.__schema__(:associations)
+        |> Enum.reduce([], fn(assoc, acc) ->
+          assoc_data = join_model.__schema__(:association, assoc)
+          assoc_id = case assoc_data.owner_key do
+            ^first  -> resource.id
+            ^second -> new_model.id
+            _       -> :error
+          end
+          case assoc_id do
+            :error -> acc
+            _      -> acc ++ [{assoc_data.owner_key, assoc_id}]
+          end
+        end)
+        struct(join_model.__struct__, join_model_params)
+      _ -> {:error, :notfound}
+    end
   end
 
   def get_join_model_instance(resource, has_many_atom, join_model, new_model) do
     res_model = resource.__struct__
 
     # get the join model atom
-    join_table_name = get_assoc_join_name(resource, Utils.to_atom(has_many_atom))
+    {field1, field2} = case res_model.__schema__(:association, has_many_atom) do
+      %{through: [_, _]} ->
+        join_table_name = get_assoc_join_name(resource, Utils.to_atom(has_many_atom))
+        {
+          res_model.__schema__(:association, join_table_name).related_key,
+          new_model.__struct__.__schema__(:association, join_table_name).related_key
+        }
 
-    field1 = res_model.__schema__(:association, join_table_name).related_key
-    field2 = new_model.__struct__.__schema__(:association, join_table_name).related_key
+      %{join_through: _, join_keys: join_keys} ->
+        [first, second] = join_keys |> Keyword.keys
+        join_model_params = join_model.__schema__(:associations)
+        |> Enum.reduce({}, fn(assoc, acc) ->
+          assoc_data = join_model.__schema__(:association, assoc)
+          assoc_id = case assoc_data.owner_key do
+            ^first  -> acc |> Tuple.insert_at(0, assoc_data.owner_key)
+            ^second -> acc |> Tuple.append(assoc_data.owner_key)
+            _       -> acc
+          end
+        end)
+    end
 
-    "from c in #{join_model}, where: c.#{field1} == #{resource.id} and " <>
-      "c.#{field2} == #{new_model.id}"
-    |> Code.eval_string([], __ENV__)
-    |> elem(0)
-    #|> repo.one
+    resource_id  = parse_or_quote_primary_key(resource.id)
+    new_model_id  = parse_or_quote_primary_key(new_model.id)
+
+    from c in join_model, where: field(c, ^field1) == ^resource_id and
+                                 field(c, ^field2) == ^new_model_id
+
   end
 
   def get_assoc_join_name(resource, field) do
@@ -330,6 +371,16 @@ res
         {:ok, queryable}
       %{through: [first, second]} ->
         {:ok, {res_model.__schema__(:association, first).related, second}}
+      %{join_through: first} ->
+        related = res_model.__schema__(:association, field).related
+        second = first.__schema__(:associations)
+                 |> Enum.reduce(nil, fn(assoc, acc) ->
+                   if first.__schema__(:association, assoc).related == related do
+                     acc = assoc
+                   end
+                 end)
+
+        {:ok, {first, second}}
       _ ->
         {:error, :notfound}
     end
@@ -359,12 +410,31 @@ res
     res
   end
 
-  def param_stringify_keys(%{__struct__: _}=params), do: params
+  def param_stringify_keys(%{__struct__: _} = params), do: params
   def param_stringify_keys(params) when is_map(params) do
     Map.to_list(params)
     |> Enum.map(fn {key, value} -> {stringify_key(key), param_stringify_keys(value)} end)
     |> Enum.into(%{})
   end
   def param_stringify_keys(params), do: params
+
+  defp parse_primary_key(val) do
+    case Integer.parse(val) do
+      {parsed, ""} -> parsed
+      _ -> val
+    end
+  end
+
+  def parse_or_quote_primary_key(val) do
+    if is_integer(val) do
+      val
+    else
+      case Ecto.UUID.cast(val) do
+        {:ok, id} -> id
+        _ -> "\"#{val}\""
+      end
+    end
+  end
+
 
 end
