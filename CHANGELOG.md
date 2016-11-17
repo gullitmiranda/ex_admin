@@ -36,6 +36,7 @@
 * Column sorting preserve current scope
 * Russian locale
 * Search options for string filters
+* [form] Adding support to `{key, value}` to array control;
 
 ### Bug Fixes
 * Fix errors in README.md

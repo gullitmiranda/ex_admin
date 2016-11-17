@@ -896,12 +896,21 @@ defmodule ExAdmin.Form do
     Xain.textarea(value, options)
   end
 
-  def build_control({:array, type}, resource, opts, model_name, field_name, ext_name) when type in ~w(string integer)a do
+  def build_control({:array, type}, resource, opts, model_name, field_name, ext_name) when type in ~w(string integer tuple)a do
 
     name = "#{model_name}-#{field_name}"
 
     # currently we only support select 2
     opts = Map.put_new opts, :select2, [tags: true]
+
+    parse_options = Map.get opts, :parse_options, (fn() ->
+      case Map.get(resource, field_name, []) do
+        nil -> []
+        list when is_list(list) -> list
+        string when is_binary(string) ->
+          String.split(string, " ")
+      end
+    end)
 
     ctrl_opts =
       opts
@@ -909,23 +918,15 @@ defmodule ExAdmin.Form do
       |> Map.put(:multiple, true)
       |> Map.put_new(:name, "#{model_name}[#{field_name}][]")
       |> Map.put_new(:id, ext_name)
-      |> Map.delete(:display)
-      |> Map.delete(:select2)
-      |> Map.delete(:type)
+      |> Map.drop([:display, :select2, :type, :parse_options])
       |> Map.to_list
 
-    options = case Map.get(resource, field_name, []) do
-      nil -> []
-      list when is_list(list) -> list
-      string when is_binary(string) ->
-        String.split(string, " ")
-    end
+    options = parse_options.()
 
     build_array_control_select2(opts[:select2], name)
     |> build_array_control_control(ctrl_opts, options)
     |> build_array_control_block
   end
-
 
   def build_control(type, resource, opts, model_name, field_name, ext_name) do
     {field_type, value} = cond do
@@ -948,14 +949,25 @@ defmodule ExAdmin.Form do
   end
 
   defp build_array_control_control({collection, script}, ctrl_opts, options) do
+    normalize_opts = fn(list, extra_opts) ->
+      Enum.map(list, fn(opt) ->
+        case opt do
+          {v, t} -> [v, t]
+          _      -> [opt, opt]
+        end ++ extra_opts
+      end)
+    end
+
     select = Xain.select ctrl_opts do
-        Enum.map(options, fn opt ->
-          Xain.option opt, value: opt, selected: "selected", style: "color: #333"
-        end) ++
-        Enum.map(collection, fn opt ->
-          Xain.option opt, value: opt
-        end)
-     end
+      options = options
+      |> normalize_opts.([selected: "selected", style: "color: #333"])
+      |> Enum.concat(normalize_opts.(collection, []))
+      |> Enum.uniq_by(fn([value | _]) -> value end)
+      |> Enum.map(fn([value, text | opts]) ->
+        Xain.option(text, [value: value] ++ opts)
+      end)
+    end
+
     {select, script}
   end
 
